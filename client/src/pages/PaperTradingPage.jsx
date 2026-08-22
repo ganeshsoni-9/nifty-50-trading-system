@@ -53,7 +53,7 @@ const PaperTradingPage = () => {
           Paper Trading Execution Terminal
         </h1>
         <p className="text-xs text-gray-400 mt-1 font-mono">
-          Simulated trading workspace — Exact ₹65/pt PnL engine, position-specific SL/Targets, and visual hit alerts
+          Simulated trading workspace — Exact ₹65/pt PnL engine, dynamic live premium updates, and position alerts
         </p>
       </div>
 
@@ -101,7 +101,7 @@ const PaperTradingPage = () => {
       <div className="terminal-card space-y-4">
         <h3 className="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center justify-between">
           <span>Paper Positions Log</span>
-          <span className="text-[10px] font-mono text-gray-500 uppercase">Live ₹65/Pt PnL Stream • Frozen SL/Targets</span>
+          <span className="text-[10px] font-mono text-gray-500 uppercase">Live Tick Stream (₹65/Pt) • Dynamic Option Delta</span>
         </h3>
 
         {loading ? (
@@ -131,16 +131,26 @@ const PaperTradingPage = () => {
               <tbody className="divide-y divide-[#1e293b]">
                 {trades.map((t) => {
                   const isOpen = t.status === 'OPEN';
-                  const currentLivePremium = isOpen ? 120.00 : t.exitPrice;
 
-                  // FIX 1: Exact ₹65/pt PnL calculation (0.5 pt = ₹32.50)
-                  const pnlPoints = currentLivePremium - t.entryPrice;
-                  const lotsCount = (t.quantity || 50) / 50;
+                  // BUG 1 FIX: Dynamic Delta-Based Option Premium Simulation on Live Index Tick
+                  const delta = 0.50;
+                  const indexShift = ltp - (t.indexEntryPrice || ltp);
+                  const isCall = t.direction === 'LONG' || (t.strike && t.strike.includes('CE')) || t.optionType === 'CALL';
+                  const optionShift = (isCall ? indexShift : -indexShift) * delta;
+                  const currentLivePremium = isOpen
+                    ? Math.max(1, Math.round((t.entryPrice + optionShift) * 100) / 100)
+                    : t.exitPrice;
+
+                  // Exact ₹65/pt PnL calculation (0.5 pt = ₹32.50)
+                  const pnlPoints = Math.round((currentLivePremium - t.entryPrice) * 100) / 100;
+                  const displayQty = t.quantity || 50; // BUG 2 FIX: Fallback to 50 instead of undefined
+                  const displayLots = Math.max(1, Math.floor(displayQty / 25)); // BUG 2 FIX: Fallback to valid integer instead of NaN
+                  const lotsMultiplier = displayQty / 50;
                   const livePnlRupees = isOpen
-                    ? Math.round(pnlPoints * rupeePerPoint * lotsCount * 10) / 10
-                    : t.pnlRupees;
+                    ? Math.round(pnlPoints * rupeePerPoint * lotsMultiplier * 10) / 10
+                    : (t.pnlRupees || 0);
 
-                  // FIX 2: Check SL / Target Hit Alert Badging
+                  // Check SL / Target Hit Alert Badging
                   const slHit = isOpen && t.stopLoss && currentLivePremium <= t.stopLoss;
                   const targetHit = isOpen && t.target1 && currentLivePremium >= t.target1;
 
@@ -159,14 +169,15 @@ const PaperTradingPage = () => {
                       <td className="p-2.5 font-extrabold text-amber-400">
                         {t.strike || `NIFTY ${t.entryPrice} ${t.direction}`} <span className="text-[10px] text-gray-400 font-normal">({t.moneyness || 'ATM'})</span>
                       </td>
-                      <td className="p-2.5 text-white">{t.quantity} ({t.quantity / 25} Lots)</td>
+                      {/* BUG 2 FIX: Clean Qty & Lots display without NaN */}
+                      <td className="p-2.5 text-white">{displayQty} ({displayLots} Lots)</td>
                       <td className="p-2.5 text-blue-400 font-bold">₹{t.entryPrice}</td>
                       <td className="p-2.5 text-red-400 font-bold">₹{t.stopLoss || Math.max(5, t.entryPrice - 15)}</td>
                       <td className="p-2.5 text-emerald-400 font-bold">₹{t.target1 || t.entryPrice + 30}</td>
                       <td className="p-2.5 text-emerald-400">₹{t.target2 || t.entryPrice + 60}</td>
                       <td className={`p-2.5 font-bold ${livePnlRupees >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         ₹{livePnlRupees.toLocaleString()}
-                        {isOpen && <span className="text-[9px] text-gray-400 block font-normal">({pnlPoints > 0 ? '+' : ''}{pnlPoints.toFixed(1)} pts)</span>}
+                        {isOpen && <span className="text-[9px] text-emerald-400 block font-normal animate-pulse">({pnlPoints > 0 ? '+' : ''}{pnlPoints.toFixed(1)} pts)</span>}
                       </td>
                       <td className="p-2.5">
                         {slHit ? (

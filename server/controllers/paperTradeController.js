@@ -2,17 +2,17 @@ const PaperTrade = require('../models/PaperTrade');
 const marketDataService = require('../services/marketData/marketDataService');
 
 let memoryPaperTrades = [
-  { _id: 'p_1', symbol: 'NIFTY 50', direction: 'LONG', setupType: 'STRONG BULLISH', confidence: 84, strike: 'NIFTY 24850 CE', entryPrice: 120, exitPrice: 165, pnlRupees: 2250, status: 'CLOSED_TARGET', openedAt: new Date(Date.now() - 5 * 86400000), closedAt: new Date(Date.now() - 5 * 86400000 + 3600000) },
-  { _id: 'p_2', symbol: 'NIFTY 50', direction: 'LONG', setupType: 'BULLISH', confidence: 75, strike: 'NIFTY 24800 CE', entryPrice: 110, exitPrice: 145, pnlRupees: 1750, status: 'CLOSED_TARGET', openedAt: new Date(Date.now() - 4 * 86400000), closedAt: new Date(Date.now() - 4 * 86400000 + 3600000) },
-  { _id: 'p_3', symbol: 'NIFTY 50', direction: 'SHORT', setupType: 'STRONG BEARISH', confidence: 88, strike: 'NIFTY 24900 PE', entryPrice: 130, exitPrice: 175, pnlRupees: 2250, status: 'CLOSED_TARGET', openedAt: new Date(Date.now() - 3 * 86400000), closedAt: new Date(Date.now() - 3 * 86400000 + 3600000) },
-  { _id: 'p_4', symbol: 'NIFTY 50', direction: 'LONG', setupType: 'BULLISH', confidence: 72, strike: 'NIFTY 24750 CE', entryPrice: 115, exitPrice: 90, pnlRupees: -1250, status: 'CLOSED_SL', openedAt: new Date(Date.now() - 2 * 86400000), closedAt: new Date(Date.now() - 2 * 86400000 + 1800000) },
-  { _id: 'p_5', symbol: 'NIFTY 50', direction: 'LONG', setupType: 'STRONG BULLISH', confidence: 85, strike: 'NIFTY 24700 CE', entryPrice: 125, exitPrice: 170, pnlRupees: 2250, status: 'CLOSED_TARGET', openedAt: new Date(Date.now() - 1 * 86400000), closedAt: new Date(Date.now() - 1 * 86400000 + 3600000) }
+  { _id: 'p_1', symbol: 'NIFTY 50', direction: 'LONG', setupType: 'STRONG BULLISH', confidence: 84, strike: 'NIFTY 24850 CE', entryPrice: 120, exitPrice: 165, pnlRupees: 2250, quantity: 50, status: 'CLOSED_TARGET', openedAt: new Date(Date.now() - 5 * 86400000), closedAt: new Date(Date.now() - 5 * 86400000 + 3600000) },
+  { _id: 'p_2', symbol: 'NIFTY 50', direction: 'LONG', setupType: 'BULLISH', confidence: 75, strike: 'NIFTY 24800 CE', entryPrice: 110, exitPrice: 145, pnlRupees: 1750, quantity: 50, status: 'CLOSED_TARGET', openedAt: new Date(Date.now() - 4 * 86400000), closedAt: new Date(Date.now() - 4 * 86400000 + 3600000) },
+  { _id: 'p_3', symbol: 'NIFTY 50', direction: 'SHORT', setupType: 'STRONG BEARISH', confidence: 88, strike: 'NIFTY 24900 PE', entryPrice: 130, exitPrice: 175, pnlRupees: 2250, quantity: 50, status: 'CLOSED_TARGET', openedAt: new Date(Date.now() - 3 * 86400000), closedAt: new Date(Date.now() - 3 * 86400000 + 3600000) },
+  { _id: 'p_4', symbol: 'NIFTY 50', direction: 'LONG', setupType: 'BULLISH', confidence: 72, strike: 'NIFTY 24750 CE', entryPrice: 115, exitPrice: 90, pnlRupees: -1250, quantity: 50, status: 'CLOSED_SL', openedAt: new Date(Date.now() - 2 * 86400000), closedAt: new Date(Date.now() - 2 * 86400000 + 1800000) },
+  { _id: 'p_5', symbol: 'NIFTY 50', direction: 'LONG', setupType: 'STRONG BULLISH', confidence: 85, strike: 'NIFTY 24700 CE', entryPrice: 125, exitPrice: 170, pnlRupees: 2250, quantity: 50, status: 'CLOSED_TARGET', openedAt: new Date(Date.now() - 1 * 86400000), closedAt: new Date(Date.now() - 1 * 86400000 + 3600000) }
 ];
 
 // POST /api/papertrades
 exports.createPaperTrade = async (req, res, next) => {
   try {
-    const { direction, entryPrice, stopLoss, target1, target2, target3, quantity, strike, optionType, moneyness } = req.body;
+    const { direction, entryPrice, indexEntryPrice, stopLoss, target1, target2, target3, quantity, strike, optionType, moneyness } = req.body;
 
     const tradeData = {
       userId: req.user ? req.user.id : null,
@@ -22,6 +22,7 @@ exports.createPaperTrade = async (req, res, next) => {
       optionType: optionType || (direction === 'LONG' ? 'CALL' : 'PUT'),
       moneyness: moneyness || 'ATM',
       entryPrice: parseFloat(entryPrice || 120),
+      indexEntryPrice: parseFloat(indexEntryPrice || 24850),
       stopLoss: parseFloat(stopLoss || entryPrice - 15),
       target1: parseFloat(target1 || entryPrice + 30),
       target2: parseFloat(target2 || entryPrice + 60),
@@ -57,6 +58,12 @@ exports.getPaperTrades = async (req, res, next) => {
 
     if (trades.length === 0) trades = memoryPaperTrades;
 
+    // Ensure quantity is defined on all historical records
+    trades = trades.map(t => ({
+      ...t,
+      quantity: t.quantity || 50
+    }));
+
     const closed = trades.filter(t => t.status !== 'OPEN');
     const winners = closed.filter(t => (t.pnlRupees || 0) > 0);
     const totalPnl = closed.reduce((acc, t) => acc + (t.pnlRupees || 0), 0);
@@ -91,6 +98,11 @@ exports.getPerformanceStats = async (req, res, next) => {
 
     if (trades.length === 0) trades = memoryPaperTrades;
 
+    trades = trades.map(t => ({
+      ...t,
+      quantity: t.quantity || 50
+    }));
+
     const closed = trades.filter(t => t.status !== 'OPEN');
     const winners = closed.filter(t => (t.pnlRupees || 0) > 0);
     const losers = closed.filter(t => (t.pnlRupees || 0) < 0);
@@ -103,7 +115,6 @@ exports.getPerformanceStats = async (req, res, next) => {
     const avgLoss = losers.length > 0 ? Math.round(totalLossRupees / losers.length) : 0;
     const profitFactor = totalLossRupees > 0 ? Math.round((totalWinRupees / totalLossRupees) * 100) / 100 : totalWinRupees > 0 ? 9.99 : 0;
 
-    // Calculate Cumulative Equity Curve & Max Drawdown
     let cumulative = 0;
     let peak = 0;
     let maxDrawdownRs = 0;
@@ -123,7 +134,6 @@ exports.getPerformanceStats = async (req, res, next) => {
 
     const maxDrawdownPercent = peak > 0 ? Math.round((maxDrawdownRs / peak) * 100) : 0;
 
-    // Confidence Band Breakdown (70-80%, 80-90%, 90-100%)
     const band70 = closed.filter(t => (t.confidence || 75) >= 70 && (t.confidence || 75) < 80);
     const band80 = closed.filter(t => (t.confidence || 85) >= 80 && (t.confidence || 85) < 90);
     const band90 = closed.filter(t => (t.confidence || 92) >= 90);
@@ -191,13 +201,13 @@ exports.closePaperTrade = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Paper trade not found' });
     }
 
-    // PnL tracking option premium buy logic (both CE and PE gain when premium increases)
     let pnlPoints = exitPrice - trade.entryPrice;
     if (!trade.strike && trade.direction === 'SHORT') {
       pnlPoints = trade.entryPrice - exitPrice;
     }
 
-    const pnlRupees = pnlPoints * trade.quantity;
+    const tradeQty = trade.quantity || 50;
+    const pnlRupees = pnlPoints * 65 * (tradeQty / 50);
 
     trade.exitPrice = Math.round(exitPrice * 100) / 100;
     trade.pnlPoints = Math.round(pnlPoints * 100) / 100;
