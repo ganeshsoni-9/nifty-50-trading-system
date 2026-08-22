@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0b0f19] text-gray-100 min-h-screen overflow-x-hidden;
+  }
+}
+
+/* Custom scrollbar for trading terminal UI */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0f19;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+.terminal-card {
+  @apply bg-[#131b2e] border border-[#1e293b] rounded-xl p-5 shadow-lg shadow-black/40 backdrop-blur-md transition-all duration-200 hover:border-[#334155];
+}
+
+.glow-green {
+  box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.4);
+}
+
+.glow-red {
+  box-shadow: 0 0 20px -5px rgba(239, 68, 68, 0.4);
+}
+
+.glow-yellow {
+  box-shadow: 0 0 20px -5px rgba(245, 158, 11, 0.4);
+}
