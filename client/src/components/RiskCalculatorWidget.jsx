@@ -7,6 +7,7 @@ const RiskCalculatorWidget = ({ riskPoints = 15 }) => {
   const [capital, setCapital] = useState(user?.capital || 100000);
   const [riskPercent, setRiskPercent] = useState(user?.riskPerTradePercent || 1.0);
   const [slPoints, setSlPoints] = useState(user?.slPoints || 15);
+  const [rupeePerPoint, setRupeePerPoint] = useState(user?.rupeeValuePerPoint || 65);
 
   const lotSize = 50; // Dynamic NIFTY Lot Size (2 lots = 50 qty)
   const maxRiskRupees = Math.round(capital * (riskPercent / 100));
@@ -16,7 +17,7 @@ const RiskCalculatorWidget = ({ riskPoints = 15 }) => {
   const suggestedQuantity = lots * 25;
 
   const handleSave = () => {
-    updateSettings(capital, riskPercent, slPoints);
+    updateSettings(capital, riskPercent, slPoints, rupeePerPoint);
   };
 
   return (
@@ -27,11 +28,11 @@ const RiskCalculatorWidget = ({ riskPoints = 15 }) => {
           Risk & Position Sizing Calculator
         </span>
         <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800 font-bold">
-          SL: {activeRiskPoints} pts
+          SL: {activeRiskPoints} pts • ₹{rupeePerPoint}/pt
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <div>
           <label className="text-[10px] text-gray-400 font-bold block mb-1">Capital (₹)</label>
           <input
@@ -62,6 +63,16 @@ const RiskCalculatorWidget = ({ riskPoints = 15 }) => {
             className="w-full bg-[#0b0f19] border border-[#1e293b] rounded-lg px-2.5 py-1.5 text-xs font-mono text-emerald-400 font-bold focus:outline-none focus:border-emerald-500"
           />
         </div>
+
+        <div>
+          <label className="text-[10px] text-gray-400 font-bold block mb-1">Rupee/Point (₹)</label>
+          <input
+            type="number"
+            value={rupeePerPoint}
+            onChange={(e) => setRupeePerPoint(parseFloat(e.target.value) || 65)}
+            className="w-full bg-[#0b0f19] border border-[#1e293b] rounded-lg px-2.5 py-1.5 text-xs font-mono text-amber-400 font-bold focus:outline-none focus:border-amber-500"
+          />
+        </div>
       </div>
 
       <div className="bg-[#0b0f19] p-3 rounded-xl border border-[#1e293b] space-y-1.5 font-mono text-xs">
@@ -70,8 +81,8 @@ const RiskCalculatorWidget = ({ riskPoints = 15 }) => {
           <span className="font-bold text-red-400">₹{maxRiskRupees.toLocaleString()}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Tight SL Distance:</span>
-          <span className="font-bold text-amber-400">{activeRiskPoints} points</span>
+          <span className="text-gray-400">Point Value Metric:</span>
+          <span className="font-bold text-amber-400">₹{rupeePerPoint} per 1.0 point movement</span>
         </div>
         <div className="flex justify-between border-t border-[#1e293b] pt-1.5">
           <span className="text-gray-300 font-bold">Suggested Quantity:</span>

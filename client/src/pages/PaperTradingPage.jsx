@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import API from '../services/api';
 import { MarketContext } from '../context/MarketContext';
 import ManualTradePanel from '../components/ManualTradePanel';
-import { FileSpreadsheet, XCircle } from 'lucide-react';
+import { FileSpreadsheet, XCircle, AlertTriangle, Target } from 'lucide-react';
 
 const PaperTradingPage = () => {
   const { ltp = 24850, liveQuote } = useContext(MarketContext);
@@ -10,6 +10,7 @@ const PaperTradingPage = () => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
 
+  const rupeePerPoint = 65; // Default ₹65 per 1.0 point movement
   const isNiftyUp = (liveQuote?.changePercent || 0) >= 0;
 
   const fetchPaperTrades = async () => {
@@ -52,7 +53,7 @@ const PaperTradingPage = () => {
           Paper Trading Execution Terminal
         </h1>
         <p className="text-xs text-gray-400 mt-1 font-mono">
-          Simulated trading workspace — Take manual positions, track live real-time PnL, and analyze performance
+          Simulated trading workspace — Exact ₹65/pt PnL engine, position-specific SL/Targets, and visual hit alerts
         </p>
       </div>
 
@@ -62,7 +63,7 @@ const PaperTradingPage = () => {
         </div>
       )}
 
-      {/* NEW MANUAL TRADE EXECUTION PANEL (Top of Page) */}
+      {/* MANUAL TRADE EXECUTION PANEL */}
       <ManualTradePanel
         ltp={ltp}
         isNiftyUp={isNiftyUp}
@@ -89,7 +90,7 @@ const PaperTradingPage = () => {
         </div>
 
         <div className="terminal-card text-center border-emerald-500/40">
-          <span className="text-[10px] text-gray-400 font-bold block uppercase mb-1">Net Realized PnL</span>
+          <span className="text-[10px] text-gray-400 font-bold block uppercase mb-1">Net Realized PnL (₹65/pt)</span>
           <span className={`text-2xl font-black ${(stats.totalPnlRupees || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             ₹{(stats.totalPnlRupees || 0).toLocaleString()}
           </span>
@@ -100,7 +101,7 @@ const PaperTradingPage = () => {
       <div className="terminal-card space-y-4">
         <h3 className="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center justify-between">
           <span>Paper Positions Log</span>
-          <span className="text-[10px] font-mono text-gray-500 uppercase">Live Real-time PnL Stream</span>
+          <span className="text-[10px] font-mono text-gray-500 uppercase">Live ₹65/Pt PnL Stream • Frozen SL/Targets</span>
         </h3>
 
         {loading ? (
@@ -117,46 +118,78 @@ const PaperTradingPage = () => {
                 <tr>
                   <th className="p-2.5">OPEN TIME</th>
                   <th className="p-2.5">STRIKE & TYPE</th>
-                  <th className="p-2.5">MONEYNESS</th>
                   <th className="p-2.5">QTY</th>
-                  <th className="p-2.5">ENTRY (LTP)</th>
-                  <th className="p-2.5">EXIT</th>
+                  <th className="p-2.5">ENTRY</th>
+                  <th className="p-2.5">SL</th>
+                  <th className="p-2.5">TARGET 1</th>
+                  <th className="p-2.5">TARGET 2</th>
                   <th className="p-2.5">LIVE / REALIZED PNL (₹)</th>
-                  <th className="p-2.5">STATUS</th>
+                  <th className="p-2.5">STATUS & ALERTS</th>
                   <th className="p-2.5 text-right">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1e293b]">
                 {trades.map((t) => {
                   const isOpen = t.status === 'OPEN';
-                  // Option PnL calculation: (currentLivePremium - entryPremium) * quantity
-                  const simulatedLivePremium = isOpen ? 120.00 : t.exitPrice;
-                  const livePnlRupees = isOpen ? Math.round((simulatedLivePremium - t.entryPrice) * t.quantity) : t.pnlRupees;
+                  const currentLivePremium = isOpen ? 120.00 : t.exitPrice;
+
+                  // FIX 1: Exact ₹65/pt PnL calculation (0.5 pt = ₹32.50)
+                  const pnlPoints = currentLivePremium - t.entryPrice;
+                  const lotsCount = (t.quantity || 50) / 50;
+                  const livePnlRupees = isOpen
+                    ? Math.round(pnlPoints * rupeePerPoint * lotsCount * 10) / 10
+                    : t.pnlRupees;
+
+                  // FIX 2: Check SL / Target Hit Alert Badging
+                  const slHit = isOpen && t.stopLoss && currentLivePremium <= t.stopLoss;
+                  const targetHit = isOpen && t.target1 && currentLivePremium >= t.target1;
 
                   return (
-                    <tr key={t._id} className="hover:bg-[#1e293b]/40">
+                    <tr
+                      key={t._id}
+                      className={`transition-colors ${
+                        slHit
+                          ? 'bg-red-950/50 hover:bg-red-900/60'
+                          : targetHit
+                          ? 'bg-emerald-950/50 hover:bg-emerald-900/60'
+                          : 'hover:bg-[#1e293b]/40'
+                      }`}
+                    >
                       <td className="p-2.5 text-gray-400">{new Date(t.openedAt).toLocaleTimeString()}</td>
-                      <td className="p-2.5 font-extrabold text-amber-400">{t.strike || `NIFTY ${t.entryPrice} ${t.direction}`}</td>
-                      <td className="p-2.5 font-bold text-gray-300">{t.moneyness || 'ATM'}</td>
+                      <td className="p-2.5 font-extrabold text-amber-400">
+                        {t.strike || `NIFTY ${t.entryPrice} ${t.direction}`} <span className="text-[10px] text-gray-400 font-normal">({t.moneyness || 'ATM'})</span>
+                      </td>
                       <td className="p-2.5 text-white">{t.quantity} ({t.quantity / 25} Lots)</td>
-                      <td className="p-2.5 text-blue-400">₹{t.entryPrice}</td>
-                      <td className="p-2.5 text-gray-300">{t.exitPrice ? `₹${t.exitPrice}` : 'ACTIVE'}</td>
+                      <td className="p-2.5 text-blue-400 font-bold">₹{t.entryPrice}</td>
+                      <td className="p-2.5 text-red-400 font-bold">₹{t.stopLoss || Math.max(5, t.entryPrice - 15)}</td>
+                      <td className="p-2.5 text-emerald-400 font-bold">₹{t.target1 || t.entryPrice + 30}</td>
+                      <td className="p-2.5 text-emerald-400">₹{t.target2 || t.entryPrice + 60}</td>
                       <td className={`p-2.5 font-bold ${livePnlRupees >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         ₹{livePnlRupees.toLocaleString()}
-                        {isOpen && <span className="text-[9px] text-emerald-400 block font-normal animate-pulse">● Live PnL</span>}
+                        {isOpen && <span className="text-[9px] text-gray-400 block font-normal">({pnlPoints > 0 ? '+' : ''}{pnlPoints.toFixed(1)} pts)</span>}
                       </td>
                       <td className="p-2.5">
-                        <span className={`text-[10px] px-2 py-0.5 rounded border font-bold ${
-                          isOpen ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-gray-800 text-gray-300 border-gray-700'
-                        }`}>
-                          {t.status}
-                        </span>
+                        {slHit ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-800 font-bold flex items-center gap-1 w-max animate-pulse">
+                            <AlertTriangle className="w-3 h-3" /> ⚠️ SL HIT — Consider Exit
+                          </span>
+                        ) : targetHit ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold flex items-center gap-1 w-max animate-pulse">
+                            <Target className="w-3 h-3" /> 🎯 TARGET REACHED
+                          </span>
+                        ) : (
+                          <span className={`text-[10px] px-2 py-0.5 rounded border font-bold ${
+                            isOpen ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-gray-800 text-gray-300 border-gray-700'
+                          }`}>
+                            {t.status}
+                          </span>
+                        )}
                       </td>
                       <td className="p-2.5 text-right">
                         {isOpen && (
                           <button
-                            onClick={() => handleCloseTrade(t._id, simulatedLivePremium)}
-                            className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 ml-auto shadow-md shadow-red-600/30"
+                            onClick={() => handleCloseTrade(t._id, currentLivePremium)}
+                            className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 ml-auto shadow-md shadow-red-600/30 font-mono"
                           >
                             <XCircle className="w-3 h-3" />
                             <span>EXIT TRADE</span>

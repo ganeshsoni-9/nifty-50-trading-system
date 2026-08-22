@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, TrendingDown, PlayCircle, Sparkles, AlertCircle, Layers } from 'lucide-react';
+import { TrendingUp, TrendingDown, PlayCircle, Sparkles, AlertCircle, Layers, Target, ShieldAlert } from 'lucide-react';
 import API from '../services/api';
 
 const ManualTradePanel = ({ ltp = 24850, isNiftyUp = true, onTradeEntered }) => {
@@ -8,6 +8,9 @@ const ManualTradePanel = ({ ltp = 24850, isNiftyUp = true, onTradeEntered }) => 
   const [selectedStrikeOffset, setSelectedStrikeOffset] = useState(0); // 0 = ATM, +50 = OTM/ITM
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+
+  const slGap = 15; // Default 15 points SL Gap
+  const rupeePerPoint = 65; // Default ₹65 per point
 
   // Strike calculation around live LTP
   const atmStrike = Math.round(ltp / 50) * 50;
@@ -25,6 +28,17 @@ const ManualTradePanel = ({ ltp = 24850, isNiftyUp = true, onTradeEntered }) => 
   const fullStrikeTitle = `NIFTY ${currentStrikeObj.label} ${optionType}`;
   const quantity = selectedLots * 25; // NIFTY Lot Size = 25
 
+  // Exact Trade Preview Levels
+  const entryLtp = currentStrikeObj.ltp;
+  const stopLoss = Math.max(5, Math.round((entryLtp - slGap) * 100) / 100);
+  const target1 = Math.round((entryLtp + slGap * 2.0) * 100) / 100;
+  const target2 = Math.round((entryLtp + slGap * 4.0) * 100) / 100;
+  const target3 = Math.round((entryLtp + slGap * 6.0) * 100) / 100;
+
+  // Potential Rs calculation using exact 65/pt formula
+  const potentialLossRs = Math.round(slGap * rupeePerPoint * (selectedLots / 2));
+  const potentialProfitT1Rs = Math.round((slGap * 2.0) * rupeePerPoint * (selectedLots / 2));
+
   const handleEnterTrade = async () => {
     setLoading(true);
     setMessage('');
@@ -34,16 +48,17 @@ const ManualTradePanel = ({ ltp = 24850, isNiftyUp = true, onTradeEntered }) => 
         strike: fullStrikeTitle,
         optionType: direction === 'LONG' ? 'CALL' : 'PUT',
         moneyness: currentStrikeObj.moneyness,
-        entryPrice: currentStrikeObj.ltp,
-        stopLoss: Math.max(5, currentStrikeObj.ltp - 25),
-        target1: currentStrikeObj.ltp + 35,
-        target2: currentStrikeObj.ltp + 70,
-        target3: currentStrikeObj.ltp + 100,
-        quantity
+        entryPrice: entryLtp,
+        stopLoss,
+        target1,
+        target2,
+        target3,
+        quantity,
+        rupeeValuePerPoint: rupeePerPoint
       });
 
       if (res.data.success) {
-        setMessage(`✅ Entered ${fullStrikeTitle} @ ₹${currentStrikeObj.ltp} (${quantity} Qty)!`);
+        setMessage(`✅ Entered ${fullStrikeTitle} @ ₹${entryLtp} (SL: ₹${stopLoss} | T1: ₹${target1})!`);
         if (onTradeEntered) onTradeEntered();
         setTimeout(() => setMessage(''), 4000);
       }
@@ -64,7 +79,7 @@ const ManualTradePanel = ({ ltp = 24850, isNiftyUp = true, onTradeEntered }) => 
           TAKE NEW POSITION (MANUAL DEMO TRADE)
         </span>
         <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950 px-2.5 py-0.5 rounded border border-emerald-800 font-bold">
-          Live LTP: ₹{ltp}
+          Live LTP: ₹{ltp} • ₹{rupeePerPoint}/pt
         </span>
       </div>
 
@@ -138,19 +153,46 @@ const ManualTradePanel = ({ ltp = 24850, isNiftyUp = true, onTradeEntered }) => 
         </div>
       </div>
 
-      {/* Trade Preview Summary & Action Button */}
-      <div className="bg-[#0b0f19] p-3 rounded-xl border border-[#1e293b] flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-[#131b2e] border border-[#1e293b]">
-            <Layers className="w-4 h-4 text-blue-400" />
+      {/* FIX 2: Live Position Preview (Entry, SL, Targets, Potential Loss/Profit Rs) */}
+      <div className="bg-[#0b0f19] p-3 rounded-xl border border-[#1e293b] space-y-2 font-mono text-xs">
+        <div className="flex items-center justify-between text-[11px] border-b border-[#1e293b] pb-2">
+          <span className="font-bold text-gray-300 flex items-center gap-1.5">
+            <Target className="w-3.5 h-3.5 text-emerald-400" />
+            POSITION TRADE PLAN PREVIEW (FROZEN ON ENTRY)
+          </span>
+          <span className="text-gray-400 text-[10px]">{fullStrikeTitle} ({currentStrikeObj.moneyness})</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+          <div className="bg-[#131b2e] p-2 rounded-lg border border-[#1e293b]">
+            <span className="text-[9px] text-gray-400 block uppercase">ENTRY LTP</span>
+            <span className="font-extrabold text-blue-400">₹{entryLtp}</span>
           </div>
-          <div>
-            <span className="text-[10px] text-gray-500 uppercase font-bold block">Selected Position Preview</span>
-            <span className="font-extrabold text-white text-xs">
-              {fullStrikeTitle} <span className="text-amber-400">({currentStrikeObj.moneyness})</span> @ <span className="text-emerald-400">₹{currentStrikeObj.ltp}</span>
-            </span>
+
+          <div className="bg-red-950/40 p-2 rounded-lg border border-red-900/60">
+            <span className="text-[9px] text-red-400 block uppercase">SL (-{slGap} PTS)</span>
+            <span className="font-extrabold text-red-300">₹{stopLoss}</span>
+            <span className="text-[9px] text-red-400 block font-bold">(-₹{potentialLossRs.toLocaleString()})</span>
+          </div>
+
+          <div className="bg-emerald-950/40 p-2 rounded-lg border border-emerald-900/60">
+            <span className="text-[9px] text-emerald-400 block uppercase">TARGET 1 (+30 PTS)</span>
+            <span className="font-extrabold text-emerald-300">₹{target1}</span>
+            <span className="text-[9px] text-emerald-400 block font-bold">(+₹{potentialProfitT1Rs.toLocaleString()})</span>
+          </div>
+
+          <div className="bg-[#131b2e] p-2 rounded-lg border border-[#1e293b]">
+            <span className="text-[9px] text-gray-400 block uppercase">TARGET 2 / 3</span>
+            <span className="font-extrabold text-emerald-400">₹{target2} / ₹{target3}</span>
           </div>
         </div>
+      </div>
+
+      {/* Action Footer */}
+      <div className="flex items-center justify-between font-mono text-xs">
+        <span className="text-gray-400 text-[11px]">
+          1 Pt Move = <strong className="text-amber-400">₹{rupeePerPoint * (selectedLots / 2)}</strong> P&L ({quantity} Qty)
+        </span>
 
         <button
           onClick={handleEnterTrade}
