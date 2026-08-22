@@ -49,6 +49,7 @@ const ManualTradePanel = ({ ltp = 24850, isNiftyUp = true, onTradeEntered }) => 
         optionType: direction === 'LONG' ? 'CALL' : 'PUT',
         moneyness: currentStrikeObj.moneyness,
         entryPrice: entryLtp,
+        indexEntryPrice: ltp,
         stopLoss,
         target1,
         target2,

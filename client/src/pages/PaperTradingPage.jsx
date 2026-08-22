@@ -101,7 +101,7 @@ const PaperTradingPage = () => {
       <div className="terminal-card space-y-4">
         <h3 className="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center justify-between">
           <span>Paper Positions Log</span>
-          <span className="text-[10px] font-mono text-gray-500 uppercase">Live Tick Stream (₹65/Pt) • Dynamic Option Delta</span>
+          <span className="text-[10px] font-mono text-gray-500 uppercase">Live Tick Stream (₹65/Pt) • Dynamic Delta Simulation</span>
         </h3>
 
         {loading ? (
@@ -132,11 +132,16 @@ const PaperTradingPage = () => {
                 {trades.map((t) => {
                   const isOpen = t.status === 'OPEN';
 
-                  // BUG 1 FIX: Dynamic Delta-Based Option Premium Simulation on Live Index Tick
+                  // BUG 1 ROOT CAUSE FIX: Anchor reference index price properly.
+                  // If t.indexEntryPrice exists, use it.
+                  // If t.entryPrice > 2000 (Index level trade), use t.entryPrice.
+                  // Otherwise fallback to 24850 baseline.
+                  const baseIndexPrice = t.indexEntryPrice || (t.entryPrice > 2000 ? t.entryPrice : 24850);
                   const delta = 0.50;
-                  const indexShift = ltp - (t.indexEntryPrice || ltp);
+                  const indexShift = ltp - baseIndexPrice;
                   const isCall = t.direction === 'LONG' || (t.strike && t.strike.includes('CE')) || t.optionType === 'CALL';
                   const optionShift = (isCall ? indexShift : -indexShift) * delta;
+
                   const currentLivePremium = isOpen
                     ? Math.max(1, Math.round((t.entryPrice + optionShift) * 100) / 100)
                     : t.exitPrice;
@@ -200,7 +205,7 @@ const PaperTradingPage = () => {
                         {isOpen && (
                           <button
                             onClick={() => handleCloseTrade(t._id, currentLivePremium)}
-                            className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 ml-auto shadow-md shadow-red-600/30 font-mono"
+                            className="bg-[#ef4444] hover:bg-red-500 text-white px-3 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 ml-auto shadow-md shadow-red-600/30 font-mono"
                           >
                             <XCircle className="w-3 h-3" />
                             <span>EXIT TRADE</span>

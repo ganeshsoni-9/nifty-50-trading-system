@@ -61,6 +61,7 @@ const TradePlanCard = ({ tradeSetup, ltp = 24850 }) => {
       const res = await API.post('/papertrades', {
         direction,
         entryPrice: entryMid, // Frozen at current live execution tick
+        indexEntryPrice: activeLtp,
         stopLoss: stopLoss,   // Frozen
         target1: target1,     // Frozen
         target2: target2,     // Frozen
