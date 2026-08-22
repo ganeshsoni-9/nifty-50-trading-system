@@ -8,9 +8,30 @@ const CandleChart = ({ timeframe = '15m', tradeSetup, onTimeframeChange }) => {
   const candlestickSeriesRef = useRef(null);
   const priceLinesRef = useRef([]);
   const prevTimeframeRef = useRef(timeframe);
+  const isDataLoadedRef = useRef(false);
 
   const [candles, setCandles] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Helper to ensure timestamp is Unix seconds and candle object format is valid
+  const formatCandles = (dataList) => {
+    if (!Array.isArray(dataList)) return [];
+    return dataList.map(c => {
+      let rawTime = c.time || c.timestamp || Math.floor(Date.now() / 1000);
+      if (typeof rawTime === 'string') {
+        rawTime = new Date(rawTime).getTime() / 1000;
+      }
+      const timeInSeconds = rawTime > 20000000000 ? Math.floor(rawTime / 1000) : Math.floor(rawTime);
+
+      return {
+        time: timeInSeconds,
+        open: parseFloat(c.open || c.close || 0),
+        high: parseFloat(c.high || c.close || 0),
+        low: parseFloat(c.low || c.close || 0),
+        close: parseFloat(c.close || 0)
+      };
+    }).sort((a, b) => a.time - b.time);
+  };
 
   // Fetch candle data on timeframe change
   useEffect(() => {
@@ -20,7 +41,8 @@ const CandleChart = ({ timeframe = '15m', tradeSetup, onTimeframeChange }) => {
       try {
         const res = await API.get(`/market/nifty/history?timeframe=${timeframe}`);
         if (res.data.success && isMounted) {
-          setCandles(res.data.data);
+          const formatted = formatCandles(res.data.data);
+          setCandles(formatted);
         }
       } catch (err) {
         console.error('[CandleChart Fetch Error]', err.message);
@@ -33,7 +55,7 @@ const CandleChart = ({ timeframe = '15m', tradeSetup, onTimeframeChange }) => {
     return () => { isMounted = false; };
   }, [timeframe]);
 
-  // FIX 1: Initialize Lightweight Chart instance ONCE
+  // FIX: Initialize Lightweight Chart instance ONCE
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
@@ -85,7 +107,7 @@ const CandleChart = ({ timeframe = '15m', tradeSetup, onTimeframeChange }) => {
     };
   }, []);
 
-  // FIX 1: Update Candles & Preserve Viewport Visible Range
+  // FIX: Proper Initial setData() on Load + Incremental update() on Ticks + Viewport Preservation
   useEffect(() => {
     if (!candlestickSeriesRef.current || candles.length === 0) return;
 
@@ -93,12 +115,16 @@ const CandleChart = ({ timeframe = '15m', tradeSetup, onTimeframeChange }) => {
     const chart = chartRef.current;
     const timeframeChanged = prevTimeframeRef.current !== timeframe;
 
-    if (timeframeChanged) {
+    // ROOT CAUSE FIX: On initial load (!isDataLoadedRef.current) or timeframe change, ALWAYS call setData()
+    if (!isDataLoadedRef.current || timeframeChanged) {
       prevTimeframeRef.current = timeframe;
+      isDataLoadedRef.current = true;
       series.setData(candles);
-      if (chart) chart.timeScale().fitContent();
+      if (chart) {
+        chart.timeScale().fitContent();
+      }
     } else {
-      // Live tick / incremental candle update
+      // Subsequent live tick incremental update
       const timeScale = chart ? chart.timeScale() : null;
       const savedRange = timeScale ? timeScale.getVisibleLogicalRange() : null;
       const isScrolledLeft = savedRange && savedRange.to < (candles.length - 2);
@@ -107,23 +133,24 @@ const CandleChart = ({ timeframe = '15m', tradeSetup, onTimeframeChange }) => {
       try {
         series.update(latestCandle);
       } catch (err) {
+        // Fallback to setData if update fails
         series.setData(candles);
       }
 
-      // Preserve scroll position if user has scrolled left inspecting historical candles
+      // Preserve viewport position if user has dragged/scrolled left inspecting past candles
       if (isScrolledLeft && timeScale && savedRange) {
         timeScale.setVisibleLogicalRange(savedRange);
       }
     }
   }, [candles, timeframe]);
 
-  // Update Trade Plan Price Lines Overlay (SL, Entry, Targets) without recreating chart
+  // Update Trade Plan Price Lines Overlay (SL, Entry, Targets) without touching candle data
   useEffect(() => {
     if (!candlestickSeriesRef.current) return;
 
     const series = candlestickSeriesRef.current;
 
-    // Remove existing price lines
+    // Clean up existing price lines
     priceLinesRef.current.forEach(line => {
       try { series.removePriceLine(line); } catch (e) {}
     });

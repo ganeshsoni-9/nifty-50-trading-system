@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { MarketContext } from '../context/MarketContext';
 import CandleChart from '../charts/CandleChart';
 import MarketBiasWidget from '../components/MarketBiasWidget';
+import TimeframeBreakdownWidget from '../components/TimeframeBreakdownWidget';
 import TradePlanCard from '../components/TradePlanCard';
 import EntryChecklistWidget from '../components/EntryChecklistWidget';
 import SupportResistanceTable from '../components/SupportResistanceTable';
@@ -22,7 +23,7 @@ const Dashboard = () => {
     );
   }
 
-  const { tradeSetup, ltp, indicators, supportResistance, marketStructure, optionsSummary } = snapshot;
+  const { tradeSetup, ltp, indicators, supportResistance, marketStructure, optionsSummary, timeframeBreakdown, confluenceSummary } = snapshot;
   const marketStatus = liveQuote?.marketStatus || snapshot?.marketStatus || 'CLOSED';
   const marketClosedReason = liveQuote?.marketClosedReason || snapshot?.marketClosedReason || 'Market is closed outside NSE trading hours';
 
@@ -63,7 +64,7 @@ const Dashboard = () => {
         </span>
       </div>
 
-      {/* Main Grid Row 1: Candlestick Chart (2 Cols) + Trade Plan Card (1 Col) */}
+      {/* Main Grid Row 1: Candlestick Chart (2 Cols) + Trade Plan Card & Checklist (1 Col) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <CandleChart
@@ -75,19 +76,27 @@ const Dashboard = () => {
 
         <div className="space-y-6">
           <TradePlanCard tradeSetup={tradeSetup} ltp={ltp} />
-          {/* FIX 3: ENTRY VERIFICATION CHECKLIST CARD */}
           <EntryChecklistWidget tradeSetup={tradeSetup} optionsSummary={optionsSummary} />
         </div>
       </div>
 
-      {/* Main Grid Row 2: Market Bias + Structure + Risk Calculator */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <MarketBiasWidget tradeSetup={tradeSetup} />
+      {/* Main Grid Row 2: TIMEFRAME-WISE TRADE PLAN BREAKDOWN (Large Panel across Grid) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <TimeframeBreakdownWidget timeframeBreakdown={timeframeBreakdown} confluenceSummary={confluenceSummary} />
+        </div>
+        <div>
+          <MarketBiasWidget tradeSetup={tradeSetup} />
+        </div>
+      </div>
+
+      {/* Main Grid Row 3: Structure + Risk Calculator */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <MarketStructureWidget marketStructure={marketStructure} />
         <RiskCalculatorWidget riskPoints={tradeSetup?.tradeLevels?.riskPoints || 30} />
       </div>
 
-      {/* Main Grid Row 3: Support/Resistance + Options Chain */}
+      {/* Main Grid Row 4: Support/Resistance + Options Chain */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SupportResistanceTable srData={supportResistance} ltp={ltp} />
         <OptionsChainWidget tradeSetup={tradeSetup} />
