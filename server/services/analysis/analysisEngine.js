@@ -7,45 +7,32 @@ const TradeSetup = require('./tradeSetup');
 const OptionsAnalysis = require('./optionsAnalysis');
 
 class AnalysisEngine {
-  static evaluateTimeframeSignal(candles, tfLabel) {
+  static evaluateTimeframeSignal(candles, tfLabel, ltp) {
     if (!candles || candles.length === 0) {
-      return { direction: 'NEUTRAL', confidence: 50, reason: 'No historical candle data' };
+      return { direction: 'NEUTRAL', confidence: 50, reason: 'No historical candle data', tradeLevels: null };
     }
 
+    const currentPrice = ltp || candles[candles.length - 1].close;
     const trend = TrendAnalysis.analyze(candles);
     const indicators = IndicatorAnalysis.analyze(candles);
     const structure = MarketStructure.analyze(candles);
+    const sr = SupportResistance.analyze(candles, currentPrice);
 
-    let score = 50;
-    let direction = 'NEUTRAL';
-    let reason = 'Consolidating in tight range';
-
-    if (trend.alignment === 'PERFECT_BULLISH_STACK' || (trend.trend === 'BULLISH' && indicators.vwapStatus === 'ABOVE_VWAP')) {
-      direction = 'LONG';
-      score = 75 + (indicators.rsi > 58 ? 15 : 0);
-      reason = trend.alignment === 'PERFECT_BULLISH_STACK'
-        ? 'EMA 20 > EMA 50 > EMA 200 bullish stack'
-        : 'Price above VWAP with bullish structure';
-    } else if (trend.alignment === 'PERFECT_BEARISH_STACK' || (trend.trend === 'BEARISH' && indicators.vwapStatus === 'BELOW_VWAP')) {
-      direction = 'SHORT';
-      score = 75 + (indicators.rsi < 42 ? 15 : 0);
-      reason = trend.alignment === 'PERFECT_BEARISH_STACK'
-        ? 'EMA 20 < EMA 50 < EMA 200 bearish stack'
-        : 'Price below VWAP with bearish structure';
-    } else if (indicators.rsi > 55) {
-      direction = 'LONG';
-      score = 62;
-      reason = `RSI (${indicators.rsi}) bullish momentum`;
-    } else if (indicators.rsi < 45) {
-      direction = 'SHORT';
-      score = 62;
-      reason = `RSI (${indicators.rsi}) bearish momentum`;
-    }
+    const setup = TradeSetup.evaluate(trend, structure, indicators, sr, currentPrice, {
+      tf5m: trend.trend,
+      tf15m: trend.trend,
+      tf1h: trend.trend
+    });
 
     return {
-      direction,
-      confidence: Math.min(95, Math.max(40, Math.round(score))),
-      reason
+      direction: setup.direction,
+      marketBias: setup.marketBias,
+      confidence: setup.confidence,
+      reason: setup.reasons[0] || (trend.alignment ? trend.alignment : 'Consolidating in tight range'),
+      reasons: setup.reasons,
+      tradeLevels: setup.tradeLevels,
+      supportResistance: sr,
+      marketStructure: structure
     };
   }
 
@@ -81,14 +68,14 @@ class AnalysisEngine {
         tf1h: trend1h.trend
       };
 
-      // Independent Evaluator for all 6 timeframes
+      // Independent Evaluator for all 6 timeframes with tradeLevels
       const timeframeBreakdown = {
-        '1m': this.evaluateTimeframeSignal(candles1m, '1m'),
-        '5m': this.evaluateTimeframeSignal(candles5m, '5m'),
-        '15m': this.evaluateTimeframeSignal(candles15m, '15m'),
-        '30m': this.evaluateTimeframeSignal(candles30m, '30m'),
-        '1h': this.evaluateTimeframeSignal(candles1h, '1h'),
-        '1d': this.evaluateTimeframeSignal(candles1d, '1d')
+        '1m': this.evaluateTimeframeSignal(candles1m, '1m', ltp),
+        '5m': this.evaluateTimeframeSignal(candles5m, '5m', ltp),
+        '15m': this.evaluateTimeframeSignal(candles15m, '15m', ltp),
+        '30m': this.evaluateTimeframeSignal(candles30m, '30m', ltp),
+        '1h': this.evaluateTimeframeSignal(candles1h, '1h', ltp),
+        '1d': this.evaluateTimeframeSignal(candles1d, '1d', ltp)
       };
 
       const longCount = Object.values(timeframeBreakdown).filter(v => v.direction === 'LONG').length;
