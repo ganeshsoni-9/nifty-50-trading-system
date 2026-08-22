@@ -12,17 +12,20 @@ let memoryPaperTrades = [
 // POST /api/papertrades
 exports.createPaperTrade = async (req, res, next) => {
   try {
-    const { direction, entryPrice, stopLoss, target1, target2, target3, quantity } = req.body;
+    const { direction, entryPrice, stopLoss, target1, target2, target3, quantity, strike, optionType, moneyness } = req.body;
 
     const tradeData = {
       userId: req.user ? req.user.id : null,
       symbol: 'NIFTY 50',
       direction: direction || 'LONG',
-      entryPrice: parseFloat(entryPrice),
-      stopLoss: parseFloat(stopLoss),
-      target1: parseFloat(target1),
-      target2: parseFloat(target2),
-      target3: parseFloat(target3),
+      strike: strike || `NIFTY ${entryPrice || 24850} ${direction === 'LONG' ? 'CE' : 'PE'}`,
+      optionType: optionType || (direction === 'LONG' ? 'CALL' : 'PUT'),
+      moneyness: moneyness || 'ATM',
+      entryPrice: parseFloat(entryPrice || 120),
+      stopLoss: parseFloat(stopLoss || entryPrice - 15),
+      target1: parseFloat(target1 || entryPrice + 30),
+      target2: parseFloat(target2 || entryPrice + 60),
+      target3: parseFloat(target3 || entryPrice + 90),
       quantity: parseInt(quantity || 50),
       status: 'OPEN',
       openedAt: new Date()
@@ -76,7 +79,7 @@ exports.getPaperTrades = async (req, res, next) => {
   }
 };
 
-// FIX 3 — GET /api/papertrades/performance
+// GET /api/papertrades/performance
 exports.getPerformanceStats = async (req, res, next) => {
   try {
     let trades;
@@ -173,8 +176,9 @@ exports.getPerformanceStats = async (req, res, next) => {
 // PUT /api/papertrades/:id/close
 exports.closePaperTrade = async (req, res, next) => {
   try {
+    const { customExitPrice } = req.body || {};
     const quote = await marketDataService.getQuote('NIFTY 50');
-    const exitPrice = quote.ltp;
+    const exitPrice = customExitPrice ? parseFloat(customExitPrice) : quote.ltp;
 
     let trade;
     try {
@@ -187,10 +191,9 @@ exports.closePaperTrade = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Paper trade not found' });
     }
 
-    let pnlPoints = 0;
-    if (trade.direction === 'LONG') {
-      pnlPoints = exitPrice - trade.entryPrice;
-    } else {
+    // PnL tracking option premium buy logic (both CE and PE gain when premium increases)
+    let pnlPoints = exitPrice - trade.entryPrice;
+    if (!trade.strike && trade.direction === 'SHORT') {
       pnlPoints = trade.entryPrice - exitPrice;
     }
 
