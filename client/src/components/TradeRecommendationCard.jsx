@@ -1,7 +1,10 @@
-import React from 'react';
-import { Target, TrendingUp, TrendingDown, ShieldAlert, Sparkles, HelpCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Target, TrendingUp, TrendingDown, ShieldAlert, Sparkles, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import TradeExecutionGuide from './TradeExecutionGuide';
 
 const TradeRecommendationCard = ({ tradeSetup, ltp = 24850, optionData }) => {
+  const [showGuide, setShowGuide] = useState(true);
+
   if (!tradeSetup) return null;
 
   const { direction = 'NO_TRADE', marketBias = '', confidence = 0, tradeLevels, reasons = [] } = tradeSetup;
@@ -123,6 +126,26 @@ const TradeRecommendationCard = ({ tradeSetup, ltp = 24850, optionData }) => {
               <li>ATM Strike {atmStrike} shows healthy open interest (&gt;50,000 OI) ensuring tight bid-ask spreads.</li>
               <li>PCR sentiment supports intraday {isLong ? 'bullish continuation' : 'bearish rejection'}.</li>
             </ul>
+          </div>
+
+          {/* Toggle Button & FIX 2: STEP-BY-STEP TRADE EXECUTION GUIDE */}
+          <div className="pt-2">
+            <button
+              onClick={() => setShowGuide(!showGuide)}
+              className="w-full flex items-center justify-between bg-[#0b0f19] hover:bg-[#1e293b] text-xs font-bold font-mono text-gray-300 p-2.5 rounded-xl border border-[#1e293b] transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-emerald-400" />
+                How to Enter & Exit This Trade (Step-by-Step Guide)
+              </span>
+              {showGuide ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            {showGuide && (
+              <div className="mt-3">
+                <TradeExecutionGuide tradeSetup={tradeSetup} ltp={ltp} />
+              </div>
+            )}
           </div>
         </>
       )}
