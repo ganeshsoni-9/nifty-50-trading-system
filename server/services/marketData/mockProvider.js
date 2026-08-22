@@ -18,7 +18,6 @@ class MockProvider {
   }
 
   initHistory() {
-    // Generate realistic historical candle data for timeframes
     const timeframes = ['1m', '5m', '15m', '30m', '1h', '1d'];
     const count = 150;
     const now = Math.floor(Date.now() / 1000);
@@ -37,7 +36,6 @@ class MockProvider {
 
       for (let i = count; i >= 0; i--) {
         const time = now - (i * stepSeconds);
-        // Random walk trend with momentum bias
         const change = (Math.random() - 0.48) * 25;
         const open = basePrice;
         const close = Math.round((open + change) * 100) / 100;
@@ -58,19 +56,18 @@ class MockProvider {
       }
 
       this.timeframeData[tf] = candles;
-      // Set current LTP to latest close
       this.currentLtp = candles[candles.length - 1].close;
     });
   }
 
   generateTick() {
-    // Simulate slight price movement
-    const delta = (Math.random() - 0.49) * 4.5;
+    // Realistic micro-tick random walk per second (Fix 1)
+    const delta = (Math.random() - 0.49) * 1.5;
     this.currentLtp = Math.round((this.currentLtp + delta) * 100) / 100;
 
     if (this.currentLtp > this.high) this.high = this.currentLtp;
     if (this.currentLtp < this.low) this.low = this.currentLtp;
-    this.volume += Math.floor(Math.random() * 500);
+    this.volume += Math.floor(Math.random() * 150);
 
     const change = Math.round((this.currentLtp - this.previousClose) * 100) / 100;
     const changePercent = Math.round((change / this.previousClose) * 10000) / 100;
@@ -99,9 +96,9 @@ class MockProvider {
   isMarketOpen() {
     const now = new Date();
     const day = now.getDay();
-    if (day === 0 || day === 6) return false; // Weekend
+    if (day === 0 || day === 6) return false;
     const timeInMin = now.getHours() * 60 + now.getMinutes();
-    return timeInMin >= 555 && timeInMin <= 930; // 9:15 AM to 3:30 PM IST
+    return timeInMin >= 555 && timeInMin <= 930;
   }
 
   async getQuote() {
@@ -112,7 +109,6 @@ class MockProvider {
     if (!this.timeframeData[timeframe]) {
       this.initHistory();
     }
-    // Update last candle close with live LTP
     const list = [...(this.timeframeData[timeframe] || [])];
     if (list.length > 0) {
       const last = { ...list[list.length - 1] };
@@ -136,6 +132,9 @@ class MockProvider {
       const isITMCall = strike < this.currentLtp;
       const isITMPut = strike > this.currentLtp;
 
+      const callMoneyness = strike < atmStrike ? 'ITM' : isATM ? 'ATM' : 'OTM';
+      const putMoneyness = strike > atmStrike ? 'ITM' : isATM ? 'ATM' : 'OTM';
+
       const callLtp = Math.max(5, Math.round((isITMCall ? (this.currentLtp - strike) + 80 : 120 - Math.abs(strike - this.currentLtp) * 0.8) * 10) / 10);
       const putLtp = Math.max(5, Math.round((isITMPut ? (strike - this.currentLtp) + 80 : 120 - Math.abs(strike - this.currentLtp) * 0.8) * 10) / 10);
 
@@ -148,6 +147,8 @@ class MockProvider {
       strikes.push({
         strikePrice: strike,
         isATM,
+        callMoneyness,
+        putMoneyness,
         call: {
           ltp: callLtp,
           change: Math.round((Math.random() - 0.4) * 15 * 10) / 10,

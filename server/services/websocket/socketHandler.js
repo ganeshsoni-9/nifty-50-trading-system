@@ -103,7 +103,7 @@ class SocketHandler {
           logger.error(`[SocketHandler Stream Error] ${err.message}`);
         }
       }
-    }, 2500);
+    }, 1000);
   }
 
   async sendSnapshot(socket) {

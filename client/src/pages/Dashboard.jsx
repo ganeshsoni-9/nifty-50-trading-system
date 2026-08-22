@@ -3,6 +3,7 @@ import { MarketContext } from '../context/MarketContext';
 import CandleChart from '../charts/CandleChart';
 import MarketBiasWidget from '../components/MarketBiasWidget';
 import TradePlanCard from '../components/TradePlanCard';
+import EntryChecklistWidget from '../components/EntryChecklistWidget';
 import SupportResistanceTable from '../components/SupportResistanceTable';
 import MarketStructureWidget from '../components/MarketStructureWidget';
 import OptionsChainWidget from '../components/OptionsChainWidget';
@@ -21,7 +22,7 @@ const Dashboard = () => {
     );
   }
 
-  const { tradeSetup, ltp, indicators, supportResistance, marketStructure } = snapshot;
+  const { tradeSetup, ltp, indicators, supportResistance, marketStructure, optionsSummary } = snapshot;
   const marketStatus = liveQuote?.marketStatus || snapshot?.marketStatus || 'CLOSED';
   const marketClosedReason = liveQuote?.marketClosedReason || snapshot?.marketClosedReason || 'Market is closed outside NSE trading hours';
 
@@ -72,8 +73,10 @@ const Dashboard = () => {
           />
         </div>
 
-        <div>
+        <div className="space-y-6">
           <TradePlanCard tradeSetup={tradeSetup} ltp={ltp} />
+          {/* FIX 3: ENTRY VERIFICATION CHECKLIST CARD */}
+          <EntryChecklistWidget tradeSetup={tradeSetup} optionsSummary={optionsSummary} />
         </div>
       </div>
 
@@ -87,7 +90,7 @@ const Dashboard = () => {
       {/* Main Grid Row 3: Support/Resistance + Options Chain */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SupportResistanceTable srData={supportResistance} ltp={ltp} />
-        <OptionsChainWidget />
+        <OptionsChainWidget tradeSetup={tradeSetup} />
       </div>
     </div>
   );
