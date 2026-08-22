@@ -1,6 +1,7 @@
 const { Server } = require('socket.io');
 const marketDataService = require('../marketData/marketDataService');
 const AnalysisEngine = require('../analysis/analysisEngine');
+const logger = require('../../utils/logger');
 
 class SocketHandler {
   constructor() {
@@ -19,7 +20,7 @@ class SocketHandler {
 
     this.io.on('connection', (socket) => {
       this.connectedClients++;
-      console.log(`[Socket.IO] Client connected (${socket.id}). Total clients: ${this.connectedClients}`);
+      logger.info(`[Socket.IO] Client connected (${socket.id}). Total clients: ${this.connectedClients}`);
 
       // Immediately send current analysis snapshot
       this.sendSnapshot(socket);
@@ -36,7 +37,7 @@ class SocketHandler {
 
       socket.on('disconnect', () => {
         this.connectedClients = Math.max(0, this.connectedClients - 1);
-        console.log(`[Socket.IO] Client disconnected. Total clients: ${this.connectedClients}`);
+        logger.info(`[Socket.IO] Client disconnected. Total clients: ${this.connectedClients}`);
       });
     });
 
@@ -46,12 +47,28 @@ class SocketHandler {
   startStreaming() {
     if (this.streamInterval) clearInterval(this.streamInterval);
 
-    // Stream tick and analysis updates every 2 seconds
+    // FIX 5 — If in LIVE mode and Angel One configured, connect persistent WebSocket stream
+    if (marketDataService.activeProviderName === 'AngelOneProvider' && marketDataService.mode === 'LIVE') {
+      logger.info('[SocketHandler] LIVE mode active. Connecting Angel One WebSocket stream...');
+      marketDataService.angelOne.connectWebSocket((liveTick) => {
+        if (this.io) {
+          this.io.emit('market_tick', liveTick);
+        }
+      });
+    } else {
+      logger.info('[SocketHandler] DEMO mode active. Preserving interval-based tick simulation.');
+    }
+
+    // Interval stream for full analysis state snapshot & health telemetry
     this.streamInterval = setInterval(async () => {
-      if (this.io) {
+      if (this.io && this.connectedClients > 0) {
         try {
           const quote = await marketDataService.getQuote('NIFTY 50');
-          this.io.emit('market_tick', quote);
+
+          // Emits simulated tick if in DEMO mode
+          if (marketDataService.mode === 'DEMO') {
+            this.io.emit('market_tick', quote);
+          }
 
           // Full analysis update
           const snapshot = await AnalysisEngine.runFullAnalysis('15m');
@@ -63,10 +80,11 @@ class SocketHandler {
             connectedClients: this.connectedClients,
             provider: quote.provider,
             mode: quote.mode,
+            marketStatus: quote.marketStatus,
             lastTickTime: quote.timestamp
           });
         } catch (err) {
-          console.error('[SocketHandler Stream Error]', err.message);
+          logger.error(`[SocketHandler Stream Error] ${err.message}`);
         }
       }
     }, 2000);

@@ -34,7 +34,7 @@ class AnalysisEngine {
 
       // Trade Setup Engine
       const setup = TradeSetup.evaluate(trend15m, structure, indicators, sr, ltp);
-      const options = OptionsAnalysis.analyze();
+      const options = await OptionsAnalysis.analyze();
 
       return {
         symbol: 'NIFTY 50',

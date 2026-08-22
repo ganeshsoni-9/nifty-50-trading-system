@@ -34,7 +34,7 @@ exports.getMarketStatus = async (req, res, next) => {
 // GET /api/market/options
 exports.getOptionChain = async (req, res, next) => {
   try {
-    const chain = marketDataService.getOptionChain();
+    const chain = await marketDataService.getOptionChain();
     res.json({ success: true, data: chain });
   } catch (error) {
     next(error);

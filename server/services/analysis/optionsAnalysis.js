@@ -1,9 +1,9 @@
 const marketDataService = require('../marketData/marketDataService');
 
 class OptionsAnalysis {
-  static analyze() {
+  static async analyze() {
     try {
-      const chain = marketDataService.getOptionChain();
+      const chain = await marketDataService.getOptionChain();
       return chain;
     } catch (err) {
       console.error('[OptionsAnalysis Error]', err.message);

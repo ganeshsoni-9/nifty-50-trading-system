@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { MarketContext } from '../context/MarketContext';
 import { AuthContext } from '../context/AuthContext';
-import { Activity, Radio, ShieldCheck, User } from 'lucide-react';
+import { Activity, Radio, ShieldCheck, User, Clock, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Navbar = () => {
@@ -13,7 +13,9 @@ const Navbar = () => {
   const changePercent = liveQuote?.changePercent || snapshot?.changePercent || 0.51;
   const isPositive = change >= 0;
 
-  const mode = snapshot?.mode || systemHealth?.components?.marketApi?.provider || 'DEMO';
+  const mode = liveQuote?.mode || snapshot?.mode || systemHealth?.components?.marketApi?.provider || 'DEMO';
+  const marketStatus = liveQuote?.marketStatus || snapshot?.marketStatus || 'CLOSED';
+  const isMarketOpen = marketStatus === 'OPEN';
 
   return (
     <header className="bg-[#131b2e] border-b border-[#1e293b] sticky top-0 z-40 px-4 py-2.5 shadow-md backdrop-blur-md">
@@ -33,6 +35,16 @@ const Navbar = () => {
               </span>
             </div>
           </Link>
+
+          {/* Market Status Pill */}
+          <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
+            isMarketOpen
+              ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800'
+              : 'bg-red-950/80 text-red-400 border-red-800'
+          }`}>
+            <Clock className="w-3 h-3" />
+            {isMarketOpen ? '🟢 MARKET OPEN' : '🔴 MARKET CLOSED'}
+          </span>
 
           {/* Mode Pill */}
           <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
