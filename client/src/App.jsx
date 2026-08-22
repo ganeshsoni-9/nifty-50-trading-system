@@ -11,6 +11,7 @@ import TradePlanPage from './pages/TradePlanPage';
 import ChartPage from './pages/ChartPage';
 import OptionsPage from './pages/OptionsPage';
 import PaperTradingPage from './pages/PaperTradingPage';
+import PerformancePage from './pages/PerformancePage';
 import BacktestingPage from './pages/BacktestingPage';
 import AlertsPage from './pages/AlertsPage';
 import HistoryPage from './pages/HistoryPage';
@@ -47,6 +48,7 @@ function App() {
             <Route path="/chart" element={<MainLayout><ChartPage /></MainLayout>} />
             <Route path="/options" element={<MainLayout><OptionsPage /></MainLayout>} />
             <Route path="/paper-trading" element={<MainLayout><PaperTradingPage /></MainLayout>} />
+            <Route path="/performance" element={<MainLayout><PerformancePage /></MainLayout>} />
             <Route path="/backtesting" element={<MainLayout><BacktestingPage /></MainLayout>} />
             <Route path="/alerts" element={<MainLayout><AlertsPage /></MainLayout>} />
             <Route path="/history" element={<MainLayout><HistoryPage /></MainLayout>} />
