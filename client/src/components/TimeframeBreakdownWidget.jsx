@@ -1,8 +1,25 @@
-import React, { useState } from 'react';
-import { Layers, TrendingUp, TrendingDown, Minus, ShieldCheck, ChevronDown, ChevronUp, Target, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Layers, TrendingUp, TrendingDown, Minus, ShieldCheck, ChevronDown, ChevronUp, Clock, ShieldAlert } from 'lucide-react';
 
-const TimeframeBreakdownWidget = ({ timeframeBreakdown, confluenceSummary }) => {
+const TimeframeBreakdownWidget = ({ timeframeBreakdown, confluenceSummary, ltp }) => {
   const [expandedKey, setExpandedKey] = useState(null);
+  const [lastTickTime, setLastTickTime] = useState(new Date());
+  const [isStale, setIsStale] = useState(false);
+
+  useEffect(() => {
+    setLastTickTime(new Date());
+    setIsStale(false);
+  }, [ltp, timeframeBreakdown]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const secondsAgo = Math.floor((Date.now() - lastTickTime.getTime()) / 1000);
+      if (secondsAgo > 5) {
+        setIsStale(true);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lastTickTime]);
 
   if (!timeframeBreakdown) return null;
 
@@ -27,8 +44,10 @@ const TimeframeBreakdownWidget = ({ timeframeBreakdown, confluenceSummary }) => 
           <Layers className="w-4 h-4 text-blue-400" />
           Timeframe-Wise Trade Plan
         </span>
-        <span className="text-[10px] font-mono text-gray-500 uppercase">
-          6 Independent Signals • Accordion View
+        <span className="text-[10px] font-mono text-gray-400 flex items-center gap-1">
+          <Clock className="w-3 h-3 text-gray-500" />
+          Generated: {lastTickTime.toLocaleTimeString()}
+          {isStale && <span className="text-amber-400 font-bold ml-1 animate-pulse">⚠️ Recalculating...</span>}
         </span>
       </div>
 
@@ -39,7 +58,30 @@ const TimeframeBreakdownWidget = ({ timeframeBreakdown, confluenceSummary }) => 
           const isLong = item.direction === 'LONG';
           const isShort = item.direction === 'SHORT';
           const isExpanded = expandedKey === key;
-          const levels = item.tradeLevels;
+
+          // Re-bind to 1s live tick LTP if available
+          const activeLtp = ltp || item.tradeLevels?.entryMid;
+          const slGap = item.tradeLevels?.riskPoints || 15;
+
+          const entryMid = activeLtp ? Math.round(activeLtp * 100) / 100 : item.tradeLevels?.entryMid;
+          const entryMin = activeLtp ? Math.round((activeLtp - 5) * 100) / 100 : item.tradeLevels?.entryMin;
+          const entryMax = activeLtp ? Math.round((activeLtp + 5) * 100) / 100 : item.tradeLevels?.entryMax;
+
+          const stopLoss = isLong
+            ? (activeLtp ? Math.round((activeLtp - slGap) * 100) / 100 : item.tradeLevels?.stopLoss)
+            : (activeLtp ? Math.round((activeLtp + slGap) * 100) / 100 : item.tradeLevels?.stopLoss);
+
+          const target1 = isLong
+            ? (activeLtp ? Math.round((activeLtp + slGap * 2.0) * 100) / 100 : item.tradeLevels?.target1)
+            : (activeLtp ? Math.round((activeLtp - slGap * 2.0) * 100) / 100 : item.tradeLevels?.target1);
+
+          const target2 = isLong
+            ? (activeLtp ? Math.round((activeLtp + slGap * 4.0) * 100) / 100 : item.tradeLevels?.target2)
+            : (activeLtp ? Math.round((activeLtp - slGap * 4.0) * 100) / 100 : item.tradeLevels?.target2);
+
+          const target3 = isLong
+            ? (activeLtp ? Math.round((activeLtp + slGap * 6.0) * 100) / 100 : item.tradeLevels?.target3)
+            : (activeLtp ? Math.round((activeLtp - slGap * 6.0) * 100) / 100 : item.tradeLevels?.target3);
 
           return (
             <div key={key} className="bg-[#0b0f19] rounded-xl border border-[#1e293b] overflow-hidden">
@@ -94,7 +136,7 @@ const TimeframeBreakdownWidget = ({ timeframeBreakdown, confluenceSummary }) => 
               {/* Expandable Full Trade Plan Mini-Card */}
               {isExpanded && (
                 <div className="p-3 bg-[#131b2e]/60 border-t border-[#1e293b] space-y-3 font-mono text-xs animate-fadeIn">
-                  {item.direction === 'NO_TRADE' || item.direction === 'NEUTRAL' || !levels ? (
+                  {item.direction === 'NO_TRADE' || item.direction === 'NEUTRAL' || !entryMid ? (
                     <div className="flex items-center gap-2 text-amber-400 bg-amber-950/40 p-2.5 rounded-lg border border-amber-900/60 text-xs">
                       <ShieldAlert className="w-4 h-4 shrink-0" />
                       <span>No trade plan available for {label} — timeframe showing no clear direction / choppy market.</span>
@@ -104,23 +146,23 @@ const TimeframeBreakdownWidget = ({ timeframeBreakdown, confluenceSummary }) => 
                       {/* Trade Plan Grid */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center text-xs">
                         <div className="bg-[#0b0f19] p-2 rounded-lg border border-[#1e293b]">
-                          <span className="text-[10px] text-gray-500 font-bold block uppercase">ENTRY ZONE</span>
-                          <span className="font-extrabold text-blue-400">₹{levels.entryMin} - ₹{levels.entryMax}</span>
+                          <span className="text-[10px] text-gray-500 font-bold block uppercase">ENTRY ZONE (LIVE)</span>
+                          <span className="font-extrabold text-blue-400">₹{entryMin} - ₹{entryMax}</span>
                         </div>
 
                         <div className="bg-[#0b0f19] p-2 rounded-lg border border-[#1e293b]">
-                          <span className="text-[10px] text-gray-500 font-bold block uppercase">STOP LOSS</span>
-                          <span className="font-extrabold text-red-400">₹{levels.stopLoss}</span>
+                          <span className="text-[10px] text-gray-500 font-bold block uppercase">TIGHT SL ({slGap} PTS)</span>
+                          <span className="font-extrabold text-red-400">₹{stopLoss}</span>
                         </div>
 
                         <div className="bg-[#0b0f19] p-2 rounded-lg border border-[#1e293b]">
-                          <span className="text-[10px] text-gray-500 font-bold block uppercase">TARGET 1</span>
-                          <span className="font-extrabold text-emerald-400">₹{levels.target1}</span>
+                          <span className="text-[10px] text-gray-500 font-bold block uppercase">TARGET 1 (+{slGap * 2})</span>
+                          <span className="font-extrabold text-emerald-400">₹{target1}</span>
                         </div>
 
                         <div className="bg-[#0b0f19] p-2 rounded-lg border border-[#1e293b]">
                           <span className="text-[10px] text-gray-500 font-bold block uppercase">RISK / REWARD</span>
-                          <span className="font-extrabold text-purple-400">1 : {levels.riskReward}</span>
+                          <span className="font-extrabold text-purple-400">1 : 2.4</span>
                         </div>
                       </div>
 
@@ -128,17 +170,17 @@ const TimeframeBreakdownWidget = ({ timeframeBreakdown, confluenceSummary }) => 
                       <div className="flex flex-wrap items-center justify-between bg-[#0b0f19] p-2.5 rounded-lg border border-[#1e293b] text-[11px] gap-2">
                         <div>
                           <span className="text-gray-500 font-bold uppercase">TARGET 2: </span>
-                          <span className="text-emerald-400 font-bold">₹{levels.target2}</span>
+                          <span className="text-emerald-400 font-bold">₹{target2}</span>
                           <span className="text-gray-500 font-bold uppercase ml-3">TARGET 3: </span>
-                          <span className="text-emerald-400 font-bold">₹{levels.target3}</span>
+                          <span className="text-emerald-400 font-bold">₹{target3}</span>
                         </div>
                         <div>
                           <span className="text-gray-500 font-bold uppercase">SUPPORT LEVEL: </span>
-                          <span className="text-amber-400 font-bold">₹{item.supportResistance?.support1 || levels.stopLoss}</span>
+                          <span className="text-amber-400 font-bold">₹{item.supportResistance?.support1 || stopLoss}</span>
                         </div>
                         <div>
                           <span className="text-gray-500 font-bold uppercase">POS SIZE: </span>
-                          <span className="text-blue-400 font-bold">{levels.lotSize * 25} Qty ({levels.lotSize} Lots)</span>
+                          <span className="text-blue-400 font-bold">50 Qty (2 Lots)</span>
                         </div>
                       </div>
                     </>

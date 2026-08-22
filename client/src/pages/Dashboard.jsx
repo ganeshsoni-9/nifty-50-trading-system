@@ -83,7 +83,7 @@ const Dashboard = () => {
       {/* Main Grid Row 2: TIMEFRAME-WISE TRADE PLAN BREAKDOWN (Large Panel across Grid) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <TimeframeBreakdownWidget timeframeBreakdown={timeframeBreakdown} confluenceSummary={confluenceSummary} />
+          <TimeframeBreakdownWidget timeframeBreakdown={timeframeBreakdown} confluenceSummary={confluenceSummary} ltp={ltp} />
         </div>
         <div>
           <MarketBiasWidget tradeSetup={tradeSetup} />
