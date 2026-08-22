@@ -1,18 +1,32 @@
 const RiskManagement = require('./riskManagement');
 
 class TradeSetup {
-  static evaluate(trendData, structureData, indicatorData, srData, ltp) {
+  static evaluate(trendData, structureData, indicatorData, srData, ltp, multiTimeframeTrends = {}) {
     let bullishScore = 0;
     let bearishScore = 0;
     const reasons = [];
 
-    // 1. EMA Trend Scoring
-    if (trendData.alignment === 'PERFECT_BULLISH_STACK') {
+    const tf5m = multiTimeframeTrends.tf5m || trendData.trend;
+    const tf15m = multiTimeframeTrends.tf15m || trendData.trend;
+    const tf1h = multiTimeframeTrends.tf1h || trendData.trend;
+
+    const isAllBullish = tf5m === 'BULLISH' && tf15m === 'BULLISH' && tf1h === 'BULLISH';
+    const isAllBearish = tf5m === 'BEARISH' && tf15m === 'BEARISH' && tf1h === 'BEARISH';
+    const isConflict = (tf5m === 'BULLISH' && tf1h === 'BEARISH') || (tf5m === 'BEARISH' && tf1h === 'BULLISH');
+
+    // 1. Multi-Timeframe Alignment Scoring (Fix 2)
+    if (isAllBullish) {
       bullishScore += 30;
-      reasons.push('EMA 20 > EMA 50 > EMA 200 perfect bullish alignment');
-    } else if (trendData.alignment === 'PERFECT_BEARISH_STACK') {
+      reasons.push('5M, 15M, and 1H trends are 100% aligned Bullish');
+    } else if (isAllBearish) {
       bearishScore += 30;
-      reasons.push('EMA 20 < EMA 50 < EMA 200 perfect bearish alignment');
+      reasons.push('5M, 15M, and 1H trends are 100% aligned Bearish');
+    } else if (trendData.alignment === 'PERFECT_BULLISH_STACK') {
+      bullishScore += 20;
+      reasons.push('EMA 20 > EMA 50 > EMA 200 bullish alignment');
+    } else if (trendData.alignment === 'PERFECT_BEARISH_STACK') {
+      bearishScore += 20;
+      reasons.push('EMA 20 < EMA 50 < EMA 200 bearish alignment');
     } else if (trendData.trend === 'BULLISH') {
       bullishScore += 15;
     } else if (trendData.trend === 'BEARISH') {
@@ -46,7 +60,7 @@ class TradeSetup {
       reasons.push('Lower High + Lower Low market structure confirmed');
     }
 
-    // 5. Volume & Crossover
+    // 5. Volume Expansion
     if (indicatorData.volumeSpike) {
       if (bullishScore > bearishScore) {
         bullishScore += 10;
@@ -61,25 +75,33 @@ class TradeSetup {
     bullishScore = Math.min(100, Math.max(0, bullishScore));
     bearishScore = Math.min(100, Math.max(0, bearishScore));
 
-    // Determine Bias
+    // Determine Bias & Handle Conflict / Strong / Normal states (Fix 2)
     let marketBias = 'NEUTRAL / NO EDGE';
-    if (bullishScore >= 75) marketBias = '🟢 STRONG BULLISH';
-    else if (bullishScore >= 60) marketBias = '🟢 BULLISH';
-    else if (bearishScore >= 75) marketBias = '🔴 STRONG BEARISH';
-    else if (bearishScore >= 60) marketBias = '🔴 BEARISH';
-    else marketBias = '🟡 NO CLEAR EDGE';
+    if (isConflict) {
+      marketBias = '🟡 MIXED SIGNALS — WAIT';
+    } else if (isAllBullish && bullishScore >= 75) {
+      marketBias = '🟢 STRONG BULLISH';
+    } else if (bullishScore >= 60) {
+      marketBias = '🟢 BULLISH';
+    } else if (isAllBearish && bearishScore >= 75) {
+      marketBias = '🔴 STRONG BEARISH';
+    } else if (bearishScore >= 60) {
+      marketBias = '🔴 BEARISH';
+    } else {
+      marketBias = '🟡 NO CLEAR EDGE';
+    }
 
     // No Trade Criteria Check
     const isSideways = Math.abs(bullishScore - bearishScore) < 20;
     const isNeutralRsi = indicatorData.rsi >= 45 && indicatorData.rsi <= 55;
     const isChoppyStructure = structureData.structure.includes('CONSOLIDATION') || structureData.structure.includes('SIDEWAYS');
 
-    if (isSideways || isNeutralRsi || isChoppyStructure || (bullishScore < 60 && bearishScore < 60)) {
+    if (isConflict || isSideways || isNeutralRsi || isChoppyStructure || (bullishScore < 60 && bearishScore < 60)) {
       const noTradeReasons = [];
+      if (isConflict) noTradeReasons.push(`Timeframe conflict: 5M is ${tf5m} while 1H is ${tf1h}`);
       if (isNeutralRsi) noTradeReasons.push(`RSI (${indicatorData.rsi}) is neutral in 45-55 range`);
       if (isSideways) noTradeReasons.push('Bullish vs Bearish score differential is insufficient');
       if (isChoppyStructure) noTradeReasons.push('Price structure is consolidating in a tight range');
-      noTradeReasons.push('Contradictory timeframes or resistance rejection detected');
 
       return {
         direction: 'NO_TRADE',
@@ -89,11 +111,11 @@ class TradeSetup {
         confidence: Math.round(Math.max(bullishScore, bearishScore)),
         reasons: noTradeReasons,
         invalidationRules: [
-          'Wait for clear 15M breakout above resistance or breakdown below support',
-          'Wait for volume spike > 1.5x Volume Moving Average'
+          'Wait for 5M, 15M, and 1H timeframes to align in the same direction',
+          'Wait for clear breakout above resistance or breakdown below support'
         ],
         tradeLevels: null,
-        marketRegime: isChoppyStructure ? 'SIDEWAYS / CHOPPY' : 'LOW VOLATILITY'
+        marketRegime: isConflict ? 'MIXED TIMEFRAMES' : isChoppyStructure ? 'SIDEWAYS / CHOPPY' : 'LOW VOLATILITY'
       };
     }
 
@@ -111,12 +133,12 @@ class TradeSetup {
     const invalidationRules = direction === 'LONG'
       ? [
           `15M candle closes below SL level (${tradeLevels.stopLoss})`,
-          'Intraday VWAP breakdowns with high volume rejection',
+          'Intraday VWAP breakdown with high volume rejection',
           'RSI falls below 45'
         ]
       : [
           `15M candle closes above SL level (${tradeLevels.stopLoss})`,
-          'Intraday VWAP reclaims with high volume expansion',
+          'Intraday VWAP reclaim with high volume expansion',
           'RSI rises above 55'
         ];
 

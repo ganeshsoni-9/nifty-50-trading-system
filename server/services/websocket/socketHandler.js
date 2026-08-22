@@ -8,6 +8,7 @@ class SocketHandler {
     this.io = null;
     this.connectedClients = 0;
     this.streamInterval = null;
+    this.lastAnalysisRunTime = 0;
   }
 
   init(server) {
@@ -47,12 +48,24 @@ class SocketHandler {
   startStreaming() {
     if (this.streamInterval) clearInterval(this.streamInterval);
 
-    // FIX 5 — If in LIVE mode and Angel One configured, connect persistent WebSocket stream
+    // FIX 1 & 5 — Persistent WebSocket stream with live tick-triggered analysis recalculation
     if (marketDataService.activeProviderName === 'AngelOneProvider' && marketDataService.mode === 'LIVE') {
       logger.info('[SocketHandler] LIVE mode active. Connecting Angel One WebSocket stream...');
-      marketDataService.angelOne.connectWebSocket((liveTick) => {
+      marketDataService.angelOne.connectWebSocket(async (liveTick) => {
         if (this.io) {
           this.io.emit('market_tick', liveTick);
+
+          // FIX 1: Real-Time Bias & Score Recalculation on Live Ticks (Throttled to 2.5s)
+          const now = Date.now();
+          if (now - this.lastAnalysisRunTime >= 2500) {
+            this.lastAnalysisRunTime = now;
+            try {
+              const snapshot = await AnalysisEngine.runFullAnalysis('15m');
+              this.io.emit('analysis_update', snapshot);
+            } catch (err) {
+              logger.error(`[SocketHandler Live Analysis Error] ${err.message}`);
+            }
+          }
         }
       });
     } else {
@@ -65,14 +78,17 @@ class SocketHandler {
         try {
           const quote = await marketDataService.getQuote('NIFTY 50');
 
-          // Emits simulated tick if in DEMO mode
+          // Emits tick in DEMO mode or periodic analysis refresh
           if (marketDataService.mode === 'DEMO') {
             this.io.emit('market_tick', quote);
           }
 
-          // Full analysis update
-          const snapshot = await AnalysisEngine.runFullAnalysis('15m');
-          this.io.emit('analysis_update', snapshot);
+          const now = Date.now();
+          if (now - this.lastAnalysisRunTime >= 2500) {
+            this.lastAnalysisRunTime = now;
+            const snapshot = await AnalysisEngine.runFullAnalysis('15m');
+            this.io.emit('analysis_update', snapshot);
+          }
 
           // Broadcast WS status
           this.io.emit('system_status', {
@@ -87,7 +103,7 @@ class SocketHandler {
           logger.error(`[SocketHandler Stream Error] ${err.message}`);
         }
       }
-    }, 2000);
+    }, 2500);
   }
 
   async sendSnapshot(socket) {

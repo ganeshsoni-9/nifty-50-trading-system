@@ -27,13 +27,19 @@ class AnalysisEngine {
       const trend15m = TrendAnalysis.analyze(candles15m);
       const trend1h = TrendAnalysis.analyze(candles1h);
 
+      const multiTimeframeTrends = {
+        tf5m: trend5m.trend,
+        tf15m: trend15m.trend,
+        tf1h: trend1h.trend
+      };
+
       // Structure & Indicators on primary timeframe
       const structure = MarketStructure.analyze(activeCandles);
       const indicators = IndicatorAnalysis.analyze(activeCandles);
       const sr = SupportResistance.analyze(activeCandles, ltp);
 
-      // Trade Setup Engine
-      const setup = TradeSetup.evaluate(trend15m, structure, indicators, sr, ltp);
+      // Trade Setup Engine with multi-timeframe confluence (Fix 2)
+      const setup = TradeSetup.evaluate(trend15m, structure, indicators, sr, ltp, multiTimeframeTrends);
       const options = await OptionsAnalysis.analyze();
 
       return {
@@ -57,11 +63,7 @@ class AnalysisEngine {
         lastUpdated: new Date().toLocaleTimeString(),
 
         timeframe: selectedTimeframe,
-        multiTimeframeTrends: {
-          tf5m: trend5m.trend,
-          tf15m: trend15m.trend,
-          tf1h: trend1h.trend
-        },
+        multiTimeframeTrends,
 
         trend: trend15m,
         marketStructure: structure,
